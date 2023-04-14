@@ -66,6 +66,8 @@ __MINGW_EXTENSION typedef unsigned long long   uint64_t;
 * Qt图形化界面
 * 3-DES适配
 
+* //TODO:密文解密与明文不符
+
 
 
 
