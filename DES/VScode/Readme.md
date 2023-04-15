@@ -8,7 +8,8 @@
 ---
 # 参考
 
-因为书上讲的不清楚，还参考了这篇博客[DES算法详细图解](https://blog.csdn.net/qq_40672635/article/details/105384881)（纯原理，无代码），以及[DES英文维基](https://en.wikipedia.org/wiki/Data_Encryption_Standard)，[DES中文维基](https://zh.wikipedia.org/wiki/%E8%B3%87%E6%96%99%E5%8A%A0%E5%AF%86%E6%A8%99%E6%BA%96)
+因为书上讲的不清楚，还参考了这篇博客[DES算法详细图解](https://blog.csdn.net/qq_40672635/article/details/105384881)（纯原理，无代码），以及[DES英文维基](https://en.wikipedia.org/wiki/Data_Encryption_Standard)，[DES中文维基](https://zh.wikipedia.org/wiki/%E8%B3%87%E6%96%99%E5%8A%A0%E5%AF%86%E6%A8%99%E6%BA%96)  
+各个表单数据来源：[DES补充材料](https://zh.wikipedia.org/wiki/DES%E8%A1%A5%E5%85%85%E6%9D%90%E6%96%99)。原表从1开始计数，代码中对所有数组减一，从0开始计数。
 
 ---
 # 关于数据类型和变量
@@ -38,11 +39,12 @@ __MINGW_EXTENSION typedef unsigned long long   uint64_t;
 
 ---
 # 关于测试用代码 
-~~* 命名空间test内的函数为测试用，**无需阅读**。使用方法为`test::[函数名]`。如：`test::itob_btoi_test();`。~~
-~~* 在正式代码中，存在一些注释为`//DEBUG:`的代码，这些代码是测试时用于阶段性输出关键值以检验正确性的，**无需阅读**。~~
-~~***以上代码都可能在项目正式完成后删去。*** .~~
+* 命名空间test内的函数为测试用，**无需阅读**。使用方法为`test::[函数名]`。如：`test::itob_btoi_test();`。
+* ~~在正式代码中，存在一些注释为`//DEBUG:`的代码，这些代码是测试时用于阶段性输出关键值以检验正确性的，**无需阅读**。~~ **相关代码基本删除**
 
-***相关代码基本删除***
+***以上代码都可能在项目正式完成后删去。***
+
+
 
 ---
 # 关于密文的可视化处理
@@ -66,7 +68,9 @@ __MINGW_EXTENSION typedef unsigned long long   uint64_t;
 * Qt图形化界面
 * 3-DES适配
 
-* //TODO:密文解密与明文不符
+
+
+
 
 
 
