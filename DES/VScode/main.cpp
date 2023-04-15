@@ -7,8 +7,7 @@ enum Code_Mode
 	encode,
 	decode
 };
-
-enum Input_Source
+enum IO_Flag
 {
 	standard,
 	file
@@ -16,16 +15,24 @@ enum Input_Source
 
 // 初始置换表
 const uint8_t IP_table[64] = {
-	58, 50, 42, 34, 26, 18, 10, 2, 60, 52, 44, 36, 28, 20, 12, 4,
-	62, 54, 46, 38, 30, 22, 14, 6, 64, 56, 48, 40, 32, 24, 16, 8,
-	57, 49, 41, 33, 25, 17, 9, 1, 59, 51, 43, 35, 27, 19, 11, 3,
-	61, 53, 45, 37, 29, 21, 13, 5, 63, 55, 47, 39, 31, 23, 15, 7};
+	57, 49, 41, 33, 25, 17, 9, 1,
+	59, 51, 43, 35, 27, 19, 11, 3,
+	61, 53, 45, 37, 29, 21, 13, 5,
+	63, 55, 47, 39, 31, 23, 15, 7,
+	56, 48, 40, 32, 24, 16, 8, 0,
+	58, 50, 42, 34, 26, 18, 10, 2,
+	60, 52, 44, 36, 28, 20, 12, 4,
+	62, 54, 46, 38, 30, 22, 14, 6};
 // 逆初始置换表
 const uint8_t FP_table[64] = {
-	40, 8, 48, 16, 56, 24, 64, 32, 39, 7, 47, 15, 55, 23, 63, 31,
-	38, 6, 46, 14, 54, 22, 62, 30, 37, 5, 45, 13, 53, 21, 61, 29,
-	36, 4, 44, 12, 52, 20, 60, 28, 35, 3, 43, 11, 51, 19, 59, 27,
-	34, 2, 42, 10, 50, 18, 58, 26, 33, 1, 41, 9, 49, 17, 57, 25};
+	39, 7, 47, 15, 55, 23, 63, 31,
+	38, 6, 46, 14, 54, 22, 62, 30,
+	37, 5, 45, 13, 53, 21, 61, 29,
+	36, 4, 44, 12, 52, 20, 60, 28,
+	35, 3, 43, 11, 51, 19, 59, 27,
+	34, 2, 42, 10, 50, 18, 58, 26,
+	33, 1, 41, 9, 49, 17, 57, 25,
+	32, 0, 40, 8, 48, 16, 56, 24};
 // 选择置换1
 const uint8_t PC_1_LK_table[28] = {
 	56, 48, 40, 32, 24, 16, 8, 0, 57, 49, 41, 33, 25, 17, 9, 1, 58, 50, 42, 34, 26, 18, 10, 2, 59, 51, 43, 35};
@@ -210,6 +217,7 @@ void DES_round(uint8_t *L_32_bin, uint8_t *R_32_bin, uint8_t *Ki_48_bin)
 		R_32_bin[i] = L0_32_bin[i] ^ R_32_bin[i];
 }
 
+// 加密一个分组
 void DES_func(uint8_t *block_64_bin, uint8_t (*ki_16_48_bin)[48])
 {
 	uint8_t *L_32_bin, *R_32_bin;
@@ -232,7 +240,29 @@ void DES_func(uint8_t *block_64_bin, uint8_t (*ki_16_48_bin)[48])
 	// 逆初始置换
 	FP_func(block_64_bin);
 }
+// 解密一个分组
+void DES_decode_func(uint8_t *block_64_bin, uint8_t (*ki_16_48_bin)[48])
+{
+	uint8_t *L_32_bin, *R_32_bin;
+	uint8_t cpy[32]; // 用于交换LR
 
+	// 逆初始置换
+	FP_func(block_64_bin);
+	L_32_bin = block_64_bin;
+	R_32_bin = block_64_bin + 32;
+
+	// MARK:循环16轮
+	for (int i = 0; i < 16; i++)
+		DES_round(L_32_bin, R_32_bin, ki_16_48_bin[15 - i]);
+
+	// MARK:最开始密文为(R16,L16)，16轮后变为(R1,L1)，交换为(L1,R1)
+	memcpy(cpy, L_32_bin, 32);
+	memcpy(L_32_bin, R_32_bin, 32);
+	memcpy(R_32_bin, cpy, 32);
+
+	// 初始置换
+	IP_func(block_64_bin);
+}
 /* MARK: 密钥调度相关 */
 // 选择置换1
 void PC_1(uint8_t *key_64_bin, uint8_t *LK_28_bin, uint8_t *RK_28_bin)
@@ -286,22 +316,19 @@ void encode_multi64_func(char *buffer, int *len)
 }
 
 // 加密时，将最后的密文处理为可显示字符
-void encode_visable_func(char *cipher_buf, int *len, uint64_t *blocks, int blen)
+void encode_visable_func(char *cipher_buf, int *len)
 {
+	char *cpy = (char *)calloc(*len, sizeof(char));
+	memcpy(cpy, cipher_buf, *len);
+
 	// 每个字节每次取4位,即每一字符拆成两个字符
-	unsigned char row[8];
-	unsigned char doub[2];
-	for (int i = 0; i < blen; i++)
+	for (int i = 0, p = 0; i < *len; i++, p += 2)
 	{
-		memcpy(row, &blocks[i], 8);
-		for (int j = 0; j < 8; j++)
-		{
-			doub[0] = 64 + (row[j] >> 4); // 前4位
-			doub[1] = 80 + (row[j] & 15); // 后4位
-			memcpy(cipher_buf + (i * 8 * 2) + (j * 2), &doub, 2);
-		}
+
+		cipher_buf[p] = 64 + (cpy[i] >> 4);		// 前4位
+		cipher_buf[p + 1] = 80 + (cpy[i] & 15); // 后4位
 	}
-	*len = *len * 2;
+	*len = *len / 2;
 };
 
 // 解密时，将密文还原为原始密文
@@ -318,47 +345,9 @@ void decode_visable_rev_func(char *cipher_buf, int *len)
 	}
 };
 
-// input_flag决定是从命令行还是文件读入
-void main_func(Input_Source input_flag, Code_Mode code_mode)
+// MARK: 主函数，负责明文分组和密钥调度
+void main_func(char *plaintext_buf, char *cipher_buf, int len, char *key, Code_Mode code_mode)
 {
-	FILE *plaintext_source, *key_source, *cipher_dest;
-	// 决定输入源
-	switch (input_flag)
-	{
-	case standard:
-	default:
-		plaintext_source = stdin;
-		key_source = stdin;
-		cipher_dest = stdout;
-		break;
-	case file:
-		plaintext_source = fopen("input.txt", "rb");
-		key_source = fopen("key.txt", "rb");
-		cipher_dest = fopen("output.txt", "wb");
-		break;
-	}
-
-	// 输入明文
-	char plaintext_buf[buffer_size] = {0};
-	char cipher_buf[buffer_size] = {0};
-	int len, blen; // 字符数组长度，分组数组长度
-	// fgets(plaintext_buf, buffer_size, plaintext_sourse);
-	fread(plaintext_buf, sizeof(char), buffer_size, plaintext_source);
-	fflush(plaintext_source);
-	len = strlen(plaintext_buf);
-	if (code_mode == encode)
-		// 对明文预处理，补齐为64位的倍数并返回长度
-		encode_multi64_func(plaintext_buf, &len);
-	else
-		// 加密时最最终密文进行了可视化处理，所以解密时需要还原为原始密文
-		decode_visable_rev_func(plaintext_buf, &len);
-	blen = len / 8;
-
-	// 输入密钥
-	char key[8] = {0};
-	// fgets(key, 8 + 1, key_sourse);
-	fread(key, sizeof(char), 8, key_source);
-	fflush(key_source);
 	uint8_t key_64_bin[64];
 	uint8_t ki_16_48_bin[16][48];
 	itob((uint8_t *)key, 8, key_64_bin, 64);
@@ -367,6 +356,7 @@ void main_func(Input_Source input_flag, Code_Mode code_mode)
 	key_schedule(key_64_bin, ki_16_48_bin);
 
 	// MARK: 明文分组
+	int blen = len / 8;
 	uint64_t *blocks = (uint64_t *)calloc(blen, sizeof(uint64_t)); // 存放所有分组
 	uint64_t block_64;											   // 存放当前操作的分组
 	uint8_t block_64_bin[64];
@@ -377,41 +367,215 @@ void main_func(Input_Source input_flag, Code_Mode code_mode)
 		memcpy(&block_64, plaintext_buf + i, 8);
 		itob((uint8_t *)&block_64, 8, block_64_bin, 64);
 
-		DES_func(block_64_bin, ki_16_48_bin);
+		if (code_mode == encode)
+			DES_func(block_64_bin, ki_16_48_bin);
+		else
+			DES_decode_func(block_64_bin, ki_16_48_bin);
 
 		btoi((uint8_t *)&block_64, 8, block_64_bin, 64);
 		blocks[cnt++] = block_64;
 	}
 
+	for (int i = 0; i < blen; i++)
+		memcpy(cipher_buf + i * 8, &blocks[i], 8);
+}
+
+// 输入输出等外围操作
+//  input_flag决定是从命令行还是文件读写
+//  code_mode决定是解密还是加密
+void IO_func(IO_Flag IO_flag, Code_Mode code_mode)
+{
+	FILE *input_source, *key_source, *output_dest;
+	// 决定读写方式
+	switch (IO_flag)
+	{
+	case standard:
+	default:
+		input_source = stdin;
+		key_source = stdin;
+		output_dest = stdout;
+		break;
+	case file:
+		input_source = fopen("input.txt", "rb");
+		key_source = fopen("key.txt", "rb");
+		output_dest = fopen("output.txt", "wb");
+		break;
+	}
+
+	// 输入明文
+	char input_buf[buffer_size] = {0};
+	char output_buf[buffer_size] = {0};
+	int len;
+	// fgets(input_buf, buffer_size, input_sourse);
+	fread(input_buf, sizeof(char), buffer_size, input_source);
+	fflush(input_source);
+	len = strlen(input_buf);
 	if (code_mode == encode)
-	{
+		// 对明文预处理，补齐为64位的倍数并返回长度
+		encode_multi64_func(input_buf, &len);
+	else
+		// 加密时最最终密文进行了可视化处理，所以解密时需要还原为原始密文
+		decode_visable_rev_func(input_buf, &len);
+
+	// 输入密钥
+	char key[8] = {0};
+	// fgets(key, 8 + 1, key_sourse);
+	fread(key, sizeof(char), 8, key_source);
+	fflush(key_source);
+
+	// MARK:主函数入口
+	main_func(input_buf, output_buf, len, key, code_mode);
+
+	if (code_mode == encode)
 		// 预处理为可显示字符，每次取4位,即每一字节拆成两个字符
-		encode_visable_func(cipher_buf, &len, blocks, blen);
-	}
-	else // decode
-	{
-		for (int i = 0; i < blen; i++)
-			memcpy(cipher_buf + i * 8, &blocks[i], 8);
-	}
+		encode_visable_func(output_buf, &len);
 
 	// 输出
-	fwrite(cipher_buf, sizeof(char), len, cipher_dest);
-	// fprintf(cipher_dest, "%s", cipher_buf);
+	fwrite(output_buf, sizeof(char), len, output_dest);
+	// fprintf(output_dest, "%s", output_buf);
 
-	if (input_flag == file)
+	if (IO_flag == file)
 	{
-		fclose(plaintext_source);
+		fclose(input_source);
 		fclose(key_source);
-		fclose(cipher_dest);
+		fclose(output_dest);
+	}
+}
+
+// 开发时测试用，无需阅读
+namespace test
+{
+	// 检查输入输出每个字符的值是否一致
+	void main_func_test(Code_Mode code_mode)
+	{
+		char a[20] = {};
+		if (code_mode == encode)
+		{ // a="12345678"
+			printf("字符串\"12345678\"对应值如下\n");
+			for (int i = 0; i < 8; i++)
+			{
+				a[i] = '1' + i;
+				printf("%d ", a[i]);
+			}
+			printf("\n");
+		}
+		else
+		{
+			printf("输入密文对应值\n");
+			for (int i = 0; i < 8; i++)
+				scanf("%d", &a[i]);
+		}
+
+		char b[20] = "";
+		char c[20] = "87654321";
+
+		main_func(a, b, 8, c, code_mode);
+
+		printf("DES后对应值如下\n");
+		for (int i = 0; i < 8; i++)
+			printf("%d ", b[i]);
+		printf("\n");
+	}
+
+	// 检查IP和FP函数是否互逆
+	void IP_FP_func_test(void)
+	{
+		uint8_t a[8], b[8], a_cpy[8];
+		uint8_t a_bin[64], b_bin[64];
+		printf("字符串\"12345678\"对应值如下\n");
+		for (int i = 0; i < 8; i++)
+		{
+			a[i] = '1' + i;
+			printf("%d ", a[i]);
+		}
+		printf("\n");
+		memcpy(a_cpy, a, 8);
+
+		printf("IP置换结果如下\n");
+		itob(a, 8, a_bin, 64);
+		IP_func(a_bin);
+		btoi(a, 8, a_bin, 64);
+		for (int i = 0; i < 8; i++)
+			printf("%d ", a[i]);
+		printf("\n");
+
+		printf("输入IP置换结果\n");
+		for (int i = 0; i < 8; i++)
+			scanf("%d", &b[i]);
+		printf("FP置换结果如下\n");
+		itob(b, 8, b_bin, 64);
+		FP_func(b_bin);
+		btoi(b, 8, b_bin, 64);
+		for (int i = 0; i < 8; i++)
+			printf("%d ", b[i]);
+		printf("\n");
+
+		bool flag = true;
+		for (int i = 0; i < 8; i++)
+			if (a_cpy[i] != b[i])
+			{
+				flag = false;
+				break;
+			}
+		if (flag)
+			printf("正确，IP和FP互为逆运算\n");
+		else
+			printf("错误，IP和FP不互为逆运算\n");
+	}
+
+	// 检查DES的每一轮是否可逆
+	void DES_round_test(void)
+	{
+		// 密钥调度
+		uint8_t key[6] = {'1', '2', '3', '4', '5', '6'};
+		uint8_t key_48_bin[48];
+		itob(key, 6, key_48_bin, 48);
+
+		uint8_t a[8] = {'1', '2', '3', '4', '5', '6', '7', '8'};
+		uint8_t a_cpy[8], b[8];
+		uint8_t a_bin[64], b_bin[64];
+		itob(a, 8, a_bin, 64);
+		memcpy(a_cpy, a, 8);
+		DES_round(a, &a[4], key_48_bin);
+		printf("一轮DES后值为\n");
+		for (int i = 0; i < 8; i++)
+			printf("%d ", a[i]);
+		printf("\n");
+
+		printf("LR互换后再输入\n");
+		for (int i = 0; i < 8; i++)
+			scanf("%d", &b[i]);
+		itob(b, 8, b_bin, 64);
+		DES_round(b, &b[4], key_48_bin);
+		printf("一轮DES后值为\n");
+		for (int i = 0; i < 8; i++)
+			printf("%d ", b[i]);
+		printf("\n");
+
+		bool flag = true;
+		for (int i = 0; i < 8; i++)
+			if (a_cpy[i] != b[i])
+			{
+				flag = false;
+				break;
+			}
+		if (flag)
+			printf("正确，DES_round可逆\n");
+		else
+			printf("错误，DES_round不可逆\n");
 	}
 }
 
 signed main(void)
 {
-	main_func(file, encode);
-	// main_func(file, decode);
+	// IO_func(file, encode);
 
+	// test::main_func_test(encode);
+	// test::main_func_test(decode);
+	// test::IP_FP_func_test();
+	// test::DES_round_test();
 	return 0;
 }
 
-//TODO:密文解密与明文不符
+// TODO:密文解密与明文不符
+//测试到DES_round，发现不可逆
