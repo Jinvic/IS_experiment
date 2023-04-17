@@ -209,17 +209,6 @@ void DES_Feistel_F(uint8_t *R_32_bin, uint8_t *Ki_48_bin)
 
 void DES_round(uint8_t *L_32_bin, uint8_t *R_32_bin, uint8_t *Ki_48_bin)
 {
-	// DEBUG:
-	/* uint8_t l[4], r[4];
-	btoi(l, 4, L_32_bin, 32);
-	btoi(r, 4, R_32_bin, 32);
-	printf("L0R0如下:\n");
-	for (int i = 0; i < 4; i++)
-		printf("%d ", l[i]);
-	for (int i = 0; i < 4; i++)
-		printf("%d ", r[i]);
-	printf("\n"); */
-
 	uint8_t L0_32_bin[32], R1_32_bin[32];
 	// 保存上一轮的L
 	memcpy(L0_32_bin, L_32_bin, 32);
@@ -229,16 +218,6 @@ void DES_round(uint8_t *L_32_bin, uint8_t *R_32_bin, uint8_t *Ki_48_bin)
 	DES_Feistel_F(R_32_bin, Ki_48_bin);
 	for (int i = 0; i < 32; i++)
 		R_32_bin[i] = L0_32_bin[i] ^ R_32_bin[i];
-
-	// DEBUG:
-	/* btoi(l, 4, L_32_bin, 32);
-	btoi(r, 4, R_32_bin, 32);
-	printf("L1R1如下:\n");
-	for (int i = 0; i < 4; i++)
-		printf("%d ", l[i]);
-	for (int i = 0; i < 4; i++)
-		printf("%d ", r[i]);
-	printf("\n"); */
 }
 
 // 加密一个分组
@@ -247,19 +226,10 @@ void DES_func(uint8_t *block_64_bin, uint8_t (*ki_16_48_bin)[48], Code_Mode code
 	uint8_t *L_32_bin, *R_32_bin;
 	uint8_t cpy[32]; // 用于最后一轮运算完成后交换LR
 
-	// DEBUG:
-	/* uint64_t block_64;
-	btoi((uint8_t *)&block_64, 8, block_64_bin, 64);
-	printf("IP前 %lld\n", block_64); */
-
 	// 初始置换
 	IP_func(block_64_bin);
 	L_32_bin = block_64_bin;
 	R_32_bin = block_64_bin + 32;
-
-	// DEBUG:
-	/* btoi((uint8_t *)&block_64, 8, block_64_bin, 64);
-	printf("IP后 %lld\n", block_64); */
 
 	// MARK:循环16轮
 	for (int i = 0; i < 16; i++)
@@ -274,16 +244,8 @@ void DES_func(uint8_t *block_64_bin, uint8_t (*ki_16_48_bin)[48], Code_Mode code
 	memcpy(L_32_bin, R_32_bin, 32);
 	memcpy(R_32_bin, cpy, 32);
 
-	// DEBUG:
-	/* btoi((uint8_t *)&block_64, 8, block_64_bin, 64);
-	printf("FP前 %lld\n", block_64); */
-
 	// 逆初始置换
 	FP_func(block_64_bin);
-
-	// DEBUG:
-	/* btoi((uint8_t *)&block_64, 8, block_64_bin, 64);
-	printf("FP后 %lld\n", block_64); */
 }
 
 /* MARK: 密钥调度相关 */
@@ -327,6 +289,38 @@ void key_schedule(uint8_t *key_64_bin, uint8_t (*ki_16_48_bin)[48])
 	}
 }
 
+// MARK: 主函数，负责明文分组和密钥调度
+void main_func(char *plaintext_buf, char *cipher_buf, int len, char *key, Code_Mode code_mode)
+{
+	uint8_t key_64_bin[64];
+	uint8_t ki_16_48_bin[16][48];
+	itob((uint8_t *)key, 8, key_64_bin, 64);
+
+	// MARK:密钥调度
+	key_schedule(key_64_bin, ki_16_48_bin);
+
+	// MARK: 明文分组
+	int blen = len / 8;
+	uint64_t *blocks = (uint64_t *)calloc(blen, sizeof(uint64_t)); // 存放所有分组
+	uint64_t block_64;											   // 存放当前操作的分组
+	uint8_t block_64_bin[64];
+
+	// 一次处理8字节即64位
+	for (int i = 0, cnt = 0; i < len; i += 8)
+	{
+		memcpy(&block_64, plaintext_buf + i, 8);
+		itob((uint8_t *)&block_64, 8, block_64_bin, 64);
+
+		DES_func(block_64_bin, ki_16_48_bin, code_mode);
+
+		btoi((uint8_t *)&block_64, 8, block_64_bin, 64);
+		blocks[cnt++] = block_64;
+	}
+
+	for (int i = 0; i < blen; i++)
+		memcpy(cipher_buf + i * 8, &blocks[i], 8);
+}
+
 /* MARK: 预处理相关 */
 // 对明文预处理，补齐为64位的倍数并返回长度
 void encode_multi64_func(char *buffer, int *len)
@@ -367,42 +361,6 @@ void decode_visable_rev_func(char *cipher_buf, int *len)
 		cipher_buf[i] = (l << 4) + r;
 	}
 };
-
-// MARK: 主函数，负责明文分组和密钥调度
-void main_func(char *plaintext_buf, char *cipher_buf, int len, char *key, Code_Mode code_mode)
-{
-	uint8_t key_64_bin[64];
-	uint8_t ki_16_48_bin[16][48];
-	itob((uint8_t *)key, 8, key_64_bin, 64);
-
-	// MARK:密钥调度
-	key_schedule(key_64_bin, ki_16_48_bin);
-
-	// MARK: 明文分组
-	int blen = len / 8;
-	uint64_t *blocks = (uint64_t *)calloc(blen, sizeof(uint64_t)); // 存放所有分组
-	uint64_t block_64;											   // 存放当前操作的分组
-	uint8_t block_64_bin[64];
-
-	// 一次处理8字节即64位
-	for (int i = 0, cnt = 0; i < len; i += 8)
-	{
-		memcpy(&block_64, plaintext_buf + i, 8);
-		itob((uint8_t *)&block_64, 8, block_64_bin, 64);
-		// DEBUG:
-		/* printf("%lld\n", block_64); */
-
-		DES_func(block_64_bin, ki_16_48_bin, code_mode);
-
-		btoi((uint8_t *)&block_64, 8, block_64_bin, 64);
-		blocks[cnt++] = block_64;
-		// DEBUG:
-		/* printf("%lld\n", block_64); */
-	}
-
-	for (int i = 0; i < blen; i++)
-		memcpy(cipher_buf + i * 8, &blocks[i], 8);
-}
 
 // 输入输出等外围操作
 //  input_flag决定是从命令行还是文件读写
