@@ -1,4 +1,5 @@
 #include <bits/stdc++.h>
+#include <windows.h>
 using namespace std;
 
 const int buffer_size = 2048;
@@ -103,7 +104,8 @@ const uint8_t P_box[32]{
 	15, 6, 19, 20, 28, 11, 27, 16, 0, 14, 22, 25, 4, 17, 30, 9,
 	1, 7, 23, 13, 31, 26, 2, 8, 18, 12, 29, 5, 21, 10, 3, 24};
 
-// inte可为char,short,int,long long。对应字节长度分别为1,2,4,8
+// 将数据转为二进制数组
+//  inte数据地址 ilen数据长度（字节数） bin数组地址 blen数组长度（位数）
 void itob(uint8_t *inte, int ilen, uint8_t *bin, int blen)
 {
 	// memset(bin, 0, sizeof(byte) * len);
@@ -124,7 +126,8 @@ void itob(uint8_t *inte, int ilen, uint8_t *bin, int blen)
 		}
 	}
 }
-// inte可为char,short,int,long long。对应字节长度分别为1,2,4,8
+// 将二进制数组转为数据
+//  inte数据地址 ilen数据长度（字节数） bin数组地址 blen数组长度（位数）
 void btoi(uint8_t *inte, int ilen, uint8_t *bin, int blen)
 {
 	// memset(bin, 0, sizeof(byte) * len);
@@ -760,6 +763,8 @@ namespace test
 
 signed main(void)
 {
+	// 设置控制台程序输出的代码页编码为utf-8格式以解决中文乱码问题
+	SetConsoleOutputCP(65001);
 	// DEBUG:
 	//  test::main_func_test(encode);
 	//  test::main_func_test(decode);
@@ -771,5 +776,6 @@ signed main(void)
 	// IO_func(file, decode);
 
 	CLI_interact();
+	system("pause");
 	return 0;
 }
