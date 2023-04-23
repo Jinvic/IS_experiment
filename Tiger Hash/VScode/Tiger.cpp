@@ -2,9 +2,15 @@
 #include "S-box.cpp"
 using namespace std;
 
-//TODO:
-void multi512_func(){};
+const int buffer_size = 2048;
+enum IO_Flag
+{
+    CLI,
+    file
+};
 
+// Tiger Hash算法相关
+// 内层轮函数
 void inner_round_func(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t Wi_64, int m)
 {
     uint8_t ci_8_8[8];
@@ -17,6 +23,7 @@ void inner_round_func(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t Wi_64, int
 #undef ci;
 };
 
+// 外层轮函数
 void outer_round_func(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t *Wi_8_64, int m)
 {
 #define w Wi_8_64
@@ -31,6 +38,7 @@ void outer_round_func(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t *Wi_8_64, 
 #undef w
 };
 
+// 密钥调度
 void key_schedule(uint64_t *Wi_8_64)
 {
 #define w Wi_8_64
@@ -53,23 +61,94 @@ void key_schedule(uint64_t *Wi_8_64)
 #undef w
 };
 
-void tiger_hash(uint64_t *block_512)
+// MARK: tiger_hash算法 处理一个512位分组
+void tiger_hash(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t *block_512)
 {
-    uint64_t a = 0x0123456789ABCDEFULL;
-    uint64_t b = 0xFEDCBA9876543210ULL;
-    uint64_t c = 0xF096A5B4C3B2E187ULL;
-    uint64_t aa = a, bb = b, cc = c;
+    // 复制abc用于轮运算和密钥调度
+    uint64_t aa = *a, bb = *b, cc = *c;
 
     uint64_t Wi_8_64[8];
     memcpy(Wi_8_64, block_512, 64);
 
+    // 外层轮运算
     outer_round_func(&aa, &bb, &cc, Wi_8_64, 5);
-    key_schedule(Wi_8_64);
+    key_schedule(Wi_8_64); // 密钥调度
     outer_round_func(&cc, &aa, &bb, Wi_8_64, 7);
-    key_schedule(Wi_8_64);
+    key_schedule(Wi_8_64); // 密钥调度
     outer_round_func(&aa, &bb, &cc, Wi_8_64, 9);
 
-    a ^= aa;
-    b -= bb;
-    c += cc;
+    *a ^= aa;
+    *b -= bb;
+    *c += cc;
+};
+
+// MARK: 主函数，负责明文分组
+void main_func(char *input_buf, char *output_buf, int len)
+{
+    uint64_t a = 0x0123456789ABCDEFULL;
+    uint64_t b = 0xFEDCBA9876543210ULL;
+    uint64_t c = 0xF096A5B4C3B2E187ULL;
+
+    // 明文分组，一次处理64字节即512位
+    int blen = len / 64;
+    for (int i = 0; i < blen; i++)
+        tiger_hash(&a, &b, &c, (uint64_t *)input_buf + i * 8);
+
+    memcpy(output_buf, &a, 8);
+    memcpy(output_buf + 8, &b, 8);
+    memcpy(output_buf + 16, &c, 8);
+};
+
+// 预处理相关
+// 对明文预处理，补齐为512位的倍数并返回长度
+void multi512_func(char *input, int *len)
+{
+    int mod = *len % 64;
+	// 补齐512位方便分组
+	memset(input + *len, 0, sizeof(char) * (mod));
+	*len += mod;
+};
+
+// 输入输出等外围操作
+//  input_flag决定是从命令行还是文件读写
+void IO_func(IO_Flag IO_flag)
+{
+    FILE *input_source, *key_source, *output_dest;
+    // 决定读写方式
+    switch (IO_flag)
+    {
+    case CLI:
+    default:
+        input_source = stdin;
+        key_source = stdin;
+        output_dest = stdout;
+        break;
+    case file:
+        input_source = fopen("input.txt", "rb");
+        key_source = fopen("key.txt", "rb");
+        output_dest = fopen("output.txt", "wb");
+        break;
+    }
+
+    // 输入明文
+    char input_buf[buffer_size] = {0};
+    char output_buf[24] = {0};
+    int len;
+    if (IO_flag == CLI)
+        fgets(input_buf, buffer_size + 1, input_source);
+    else // file
+        fread(input_buf, sizeof(char), buffer_size, input_source);
+    fflush(input_source);
+    len = strlen(input_buf);
+    if (IO_flag == CLI && input_buf[len - 1] == '\n')
+        len--; // 删除命令行输入时多余的回车
+
+    // 对明文预处理，补齐为64位的倍数并返回长度
+    multi512_func(input_buf, &len);
+
+    // MARK:主函数入口
+    main_func(input_buf, output_buf, len);
+
+    // 输出
+    fwrite(output_buf, sizeof(char), 24, output_dest);
 };
