@@ -23,7 +23,7 @@ void inner_round_func(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t Wi_64, int
     *a -= S_box[0][ci[0]] ^ S_box[1][ci[2]] ^ S_box[2][ci[4]] ^ S_box[3][ci[6]];
     *b -= S_box[3][ci[1]] ^ S_box[2][ci[3]] ^ S_box[0][ci[5]] ^ S_box[0][ci[7]];
     *b *= m;
-#undef ci;
+#undef ci
 };
 
 // 外层轮函数
@@ -85,21 +85,49 @@ void tiger_hash(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t *block_512)
     *c += cc;
 };
 
-// MARK: 主函数，负责明文分组
+// MARK: 主函数，负责明文分组等
 void main_func(char *input_buf, char *output_buf, int len)
 {
     uint64_t a = 0x0123456789ABCDEFULL;
     uint64_t b = 0xFEDCBA9876543210ULL;
     uint64_t c = 0xF096A5B4C3B2E187ULL;
 
-    // 明文分组，一次处理64字节即512位
+    /* 明文分组，一次处理64字节即512位
     int blen = len / 64;
     for (int i = 0; i < blen; i++)
-        tiger_hash(&a, &b, &c, (uint64_t *)input_buf + i * 8);
+        tiger_hash(&a, &b, &c, (uint64_t *)input_buf + i * 8); */
 
-//     memcpy(output_buf, &a, 8);
-//     memcpy(output_buf + 8, &b, 8);
-//     memcpy(output_buf + 16, &c, 8);
+    int i, j;
+    unsigned char temp[64];
+    uint64_t *str = (uint64_t *)input_buf;
+
+    // 明文分组，一次处理64字节即512位
+    for (i = len; i >= 64; i--)
+    {
+        tiger_hash(&a, &b, &c, str);
+        str += 8;
+    }
+
+    // 不满512位进行补齐
+    for (j = 0; j < i; j++)
+        temp[j] = ((uint8_t *)str)[j];
+    temp[j++] = 0x01;
+    for (; j & 7; j++)
+        temp[j] = 0;
+
+    if (j > 56)
+    {
+        for (; j < 64; j++)
+            temp[j] = 0;
+        tiger_hash(&a, &b, &c, (uint64_t *)temp);
+        j = 0;
+    }
+
+    for (; j < 56; j++)
+        temp[j] = 0;
+    ((uint64_t *)(&(temp[56])))[0] = ((uint64_t)len) << 3;
+    tiger_hash(&a, &b, &c, (uint64_t *)temp);
+
     // 输出数据的hex值
     int p = 0;
     uint8_t *ai = (uint8_t *)&a; // 拆成8字节数组
@@ -122,15 +150,15 @@ void main_func(char *input_buf, char *output_buf, int len)
     }
 };
 
-// 预处理相关
+/* // 预处理相关
 // 对明文预处理，补齐为512位的倍数并返回长度
 void multi512_func(char *input, int *len)
 {
     int mod = *len % 64;
-	// 补齐512位方便分组
-	memset(input + *len, 0, sizeof(char) * (mod));
-	*len += mod;
-};
+    // 补齐512位方便分组
+    memset(input + *len, 0, sizeof(char) * (mod));
+    *len += mod;
+}; */
 
 // 输入输出等外围操作
 //  input_flag决定是从命令行还是文件读写
@@ -170,15 +198,15 @@ void IO_func(IO_Flag IO_flag)
         len--;
     }
 
-    // 对明文预处理，补齐为64位的倍数并返回长度
-    multi512_func(input_buf, &len);
+    /* // 对明文预处理，补齐为64位的倍数并返回长度
+    multi512_func(input_buf, &len); */
 
     // MARK:主函数入口
     main_func(input_buf, output_buf, len);
 
     // 输出
-    fwrite(output_buf, sizeof(char), 24, output_dest);
-    
+    fwrite(output_buf, sizeof(char), 48, output_dest);
+
     if (IO_flag == file)
     {
         fclose(input_source);
