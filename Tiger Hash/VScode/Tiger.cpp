@@ -23,7 +23,7 @@ void inner_round_func(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t Wi_64, int
     *a -= S_box[0][ci[0]] ^ S_box[1][ci[2]] ^ S_box[2][ci[4]] ^ S_box[3][ci[6]];
     *b -= S_box[3][ci[1]] ^ S_box[2][ci[3]] ^ S_box[0][ci[5]] ^ S_box[0][ci[7]];
     *b *= m;
-#undef ci;
+#undef ci
 };
 
 // 外层轮函数
@@ -177,7 +177,7 @@ void IO_func(IO_Flag IO_flag)
     main_func(input_buf, output_buf, len);
 
     // 输出
-    fwrite(output_buf, sizeof(char), 24, output_dest);
+    fwrite(output_buf, sizeof(char), 48, output_dest);
     
     if (IO_flag == file)
     {
