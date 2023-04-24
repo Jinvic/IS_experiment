@@ -1,13 +1,16 @@
 #include <bits/stdc++.h>
+#include <windows.h>
 #include "S-box.cpp"
 using namespace std;
 
 const int buffer_size = 2048;
+char to_hex[] = "0123456789ABCDEF";
 enum IO_Flag
 {
     CLI,
     file
 };
+
 
 // Tiger Hash算法相关
 // 内层轮函数
@@ -94,9 +97,29 @@ void main_func(char *input_buf, char *output_buf, int len)
     for (int i = 0; i < blen; i++)
         tiger_hash(&a, &b, &c, (uint64_t *)input_buf + i * 8);
 
-    memcpy(output_buf, &a, 8);
-    memcpy(output_buf + 8, &b, 8);
-    memcpy(output_buf + 16, &c, 8);
+//     memcpy(output_buf, &a, 8);
+//     memcpy(output_buf + 8, &b, 8);
+//     memcpy(output_buf + 16, &c, 8);
+    // 输出数据的hex值
+    int p = 0;
+    uint8_t *ai = (uint8_t *)&a; // 拆成8字节数组
+    for (int i = 0; i < 8; i++, p += 2)
+    {
+        output_buf[p] = to_hex[ai[i] >> 4];     // 前4位hex值
+        output_buf[p + 1] = to_hex[ai[i] & 15]; // 后4位hex值
+    }
+    uint8_t *bi = (uint8_t *)&b; // 拆成8字节数组
+    for (int i = 0; i < 8; i++, p += 2)
+    {
+        output_buf[p] = to_hex[bi[i] >> 4];     // 前4位hex值
+        output_buf[p + 1] = to_hex[bi[i] & 15]; // 后4位hex值
+    }
+    uint8_t *ci = (uint8_t *)&c; // 拆成8字节数组
+    for (int i = 0; i < 8; i++, p += 2)
+    {
+        output_buf[p] = to_hex[ci[i] >> 4];     // 前4位hex值
+        output_buf[p + 1] = to_hex[ci[i] & 15]; // 后4位hex值
+    }
 };
 
 // 预处理相关
@@ -132,7 +155,7 @@ void IO_func(IO_Flag IO_flag)
 
     // 输入明文
     char input_buf[buffer_size] = {0};
-    char output_buf[24] = {0};
+    char output_buf[48] = {0}; // 输出hex值，数组开两倍大小
     int len;
     if (IO_flag == CLI)
         fgets(input_buf, buffer_size + 1, input_source);
@@ -140,8 +163,12 @@ void IO_func(IO_Flag IO_flag)
         fread(input_buf, sizeof(char), buffer_size, input_source);
     fflush(input_source);
     len = strlen(input_buf);
+    // 删除命令行输入时多余的回车
     if (IO_flag == CLI && input_buf[len - 1] == '\n')
-        len--; // 删除命令行输入时多余的回车
+    {
+        input_buf[len - 1] = '\0';
+        len--;
+    }
 
     // 对明文预处理，补齐为64位的倍数并返回长度
     multi512_func(input_buf, &len);
@@ -151,4 +178,69 @@ void IO_func(IO_Flag IO_flag)
 
     // 输出
     fwrite(output_buf, sizeof(char), 24, output_dest);
+    
+    if (IO_flag == file)
+    {
+        fclose(input_source);
+        fclose(key_source);
+        fclose(output_dest);
+    }
 };
+
+// 命令行交互界面
+void CLI_interact(void)
+{
+    IO_Flag IO_flag;
+
+    char cmd;         // 输入命令
+    bool input_legal; // 输入合法性校验
+
+    // 选择 命令行CLI/文件file 输入输出
+    input_legal = false;
+    while (!input_legal)
+    {
+        printf("选择 命令行[C]/文件[F] 输入输出:\n");
+        scanf("%c", &cmd);
+        fflush(stdin);
+        switch (cmd)
+        {
+        case 'c':
+        case 'C':
+            IO_flag = CLI;
+            input_legal = true;
+            break;
+        case 'f':
+        case 'F':
+            IO_flag = file;
+            input_legal = true;
+            break;
+        default:
+            printf("输入不合法，请重新输入\n");
+            break;
+        }
+    }
+
+    if (IO_flag == CLI)
+    {
+        printf("输入文本（仅一行），可以空格，长度不超过%d字符\n", buffer_size);
+    }
+    else // file
+    {
+        printf("在input.txt中输入需要处理的文本，长度不超过%d字符\n", buffer_size);
+        printf("结果将输出到output.txt中\n");
+        printf("完成输入后按任意键继续\n");
+        system("pause");
+    }
+    IO_func(IO_flag);
+    printf("\n已完成\n");
+}
+
+signed main(void)
+{
+    // 设置控制台程序输出的代码页编码为utf-8格式以解决中文乱码问题
+    SetConsoleOutputCP(65001);
+
+    CLI_interact();
+    system("pause");
+    return 0;
+}
