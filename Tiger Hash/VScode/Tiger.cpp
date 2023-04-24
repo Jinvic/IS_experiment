@@ -11,7 +11,6 @@ enum IO_Flag
     file
 };
 
-
 // Tiger Hash算法相关
 // 内层轮函数
 void inner_round_func(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t Wi_64, int m)
@@ -32,10 +31,10 @@ void outer_round_func(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t *Wi_8_64, 
 #define w Wi_8_64
     inner_round_func(a, b, c, w[0], m);
     inner_round_func(b, c, a, w[1], m);
-    inner_round_func(a, b, c, w[2], m);
+    inner_round_func(c, a, b, w[2], m);
     inner_round_func(a, b, c, w[3], m);
     inner_round_func(b, c, a, w[4], m);
-    inner_round_func(a, b, c, w[5], m);
+    inner_round_func(c, a, b, w[5], m);
     inner_round_func(a, b, c, w[6], m);
     inner_round_func(b, c, a, w[7], m);
 #undef w
@@ -45,7 +44,7 @@ void outer_round_func(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t *Wi_8_64, 
 void key_schedule(uint64_t *Wi_8_64)
 {
 #define w Wi_8_64
-    w[0] -= (w[7]) ^ 0xA5A5A5A5A5A5A5A5ULL;
+    w[0] -= w[7] ^ 0xA5A5A5A5A5A5A5A5ULL;
     w[1] ^= w[0];
     w[2] += w[1];
     w[3] -= w[2] ^ ((~w[1]) << 19);
@@ -85,7 +84,7 @@ void tiger_hash(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t *block_512)
     *c += cc;
 };
 
-// MARK: 主函数，负责明文分组
+// MARK: 主函数，负责明文分组等
 void main_func(char *input_buf, char *output_buf, int len)
 {
     uint64_t a = 0x0123456789ABCDEFULL;
@@ -93,13 +92,10 @@ void main_func(char *input_buf, char *output_buf, int len)
     uint64_t c = 0xF096A5B4C3B2E187ULL;
 
     // 明文分组，一次处理64字节即512位
-    int blen = len / 64;
+    int blen = len / 64; /* 分组长度 */
     for (int i = 0; i < blen; i++)
         tiger_hash(&a, &b, &c, (uint64_t *)input_buf + i * 8);
 
-//     memcpy(output_buf, &a, 8);
-//     memcpy(output_buf + 8, &b, 8);
-//     memcpy(output_buf + 16, &c, 8);
     // 输出数据的hex值
     int p = 0;
     uint8_t *ai = (uint8_t *)&a; // 拆成8字节数组
@@ -126,29 +122,41 @@ void main_func(char *input_buf, char *output_buf, int len)
 // 对明文预处理，补齐为512位的倍数并返回长度
 void multi512_func(char *input, int *len)
 {
-    int mod = *len % 64;
-	// 补齐512位方便分组
-	memset(input + *len, 0, sizeof(char) * (mod));
-	*len += mod;
+    // 位长度
+     uint64_t blen = *len * 8, blen_cpy = blen;
+
+    // 填充1
+    const uint8_t pad1 = 1 << 7; /* 因为按字节输入输出一定是8倍数，这里直接填充一个字节而不是一位 */
+    memcpy(input + *len, &pad1, 1);
+    blen += 8;
+    *len += 1;
+
+    // 填充0直到比512位倍数少64位
+    int pad0 = (448 - (blen % 512)) % 512; /* 填充0的位数 */
+    for (int i = 0; i < pad0 / 8; i++)
+        *(input + *len + i) = 0;
+    *len += pad0 / 8;
+
+    // 原始消息的位数的64位的二进制整数添加到消息末尾
+    memcpy(input + *len, &blen_cpy, 8);
+    *len += 8;
 };
 
 // 输入输出等外围操作
 //  input_flag决定是从命令行还是文件读写
 void IO_func(IO_Flag IO_flag)
 {
-    FILE *input_source, *key_source, *output_dest;
+    FILE *input_source, *output_dest;
     // 决定读写方式
     switch (IO_flag)
     {
     case CLI:
     default:
         input_source = stdin;
-        key_source = stdin;
         output_dest = stdout;
         break;
     case file:
         input_source = fopen("input.txt", "rb");
-        key_source = fopen("key.txt", "rb");
         output_dest = fopen("output.txt", "wb");
         break;
     }
@@ -170,7 +178,7 @@ void IO_func(IO_Flag IO_flag)
         len--;
     }
 
-    // 对明文预处理，补齐为64位的倍数并返回长度
+    // 对明文预处理，补齐为512位的倍数并返回长度
     multi512_func(input_buf, &len);
 
     // MARK:主函数入口
@@ -178,11 +186,10 @@ void IO_func(IO_Flag IO_flag)
 
     // 输出
     fwrite(output_buf, sizeof(char), 48, output_dest);
-    
+
     if (IO_flag == file)
     {
         fclose(input_source);
-        fclose(key_source);
         fclose(output_dest);
     }
 };
