@@ -4,7 +4,6 @@
 using namespace std;
 
 const int buffer_size = 2048;
-char to_hex[] = "0123456789ABCDEF";
 enum IO_Flag
 {
     CLI,
@@ -17,10 +16,11 @@ void inner_round_func(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t Wi_64, int
 {
     uint8_t ci_8_8[8];
     memcpy(ci_8_8, c, 8);
+
 #define ci ci_8_8
     *c ^= Wi_64;
     *a -= S_box[0][ci[0]] ^ S_box[1][ci[2]] ^ S_box[2][ci[4]] ^ S_box[3][ci[6]];
-    *b -= S_box[3][ci[1]] ^ S_box[2][ci[3]] ^ S_box[0][ci[5]] ^ S_box[0][ci[7]];
+    *b -= S_box[3][ci[1]] ^ S_box[2][ci[3]] ^ S_box[1][ci[5]] ^ S_box[0][ci[7]];
     *b *= m;
 #undef ci
 };
@@ -71,7 +71,6 @@ void tiger_hash(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t *block_512)
 
     uint64_t Wi_8_64[8];
     memcpy(Wi_8_64, block_512, 64);
-
     // 外层轮运算
     outer_round_func(&aa, &bb, &cc, Wi_8_64, 5);
     key_schedule(Wi_8_64); // 密钥调度
@@ -97,25 +96,9 @@ void main_func(char *input_buf, char *output_buf, int len)
         tiger_hash(&a, &b, &c, (uint64_t *)input_buf + i * 8);
 
     // 输出数据的hex值
-    int p = 0;
-    uint8_t *ai = (uint8_t *)&a; // 拆成8字节数组
-    for (int i = 0; i < 8; i++, p += 2)
-    {
-        output_buf[p] = to_hex[ai[i] >> 4];     // 前4位hex值
-        output_buf[p + 1] = to_hex[ai[i] & 15]; // 后4位hex值
-    }
-    uint8_t *bi = (uint8_t *)&b; // 拆成8字节数组
-    for (int i = 0; i < 8; i++, p += 2)
-    {
-        output_buf[p] = to_hex[bi[i] >> 4];     // 前4位hex值
-        output_buf[p + 1] = to_hex[bi[i] & 15]; // 后4位hex值
-    }
-    uint8_t *ci = (uint8_t *)&c; // 拆成8字节数组
-    for (int i = 0; i < 8; i++, p += 2)
-    {
-        output_buf[p] = to_hex[ci[i] >> 4];     // 前4位hex值
-        output_buf[p + 1] = to_hex[ci[i] & 15]; // 后4位hex值
-    }
+    sprintf(output_buf, "%08X%08X", (uint32_t)(a >> 32), (uint32_t)a);
+    sprintf(output_buf + 16, "%08X%08X", (uint32_t)(b >> 32), (uint32_t)c);
+    sprintf(output_buf + 32, "%08X%08X", (uint32_t)(b >> 32), (uint32_t)c);
 };
 
 // 预处理相关
@@ -123,18 +106,17 @@ void main_func(char *input_buf, char *output_buf, int len)
 void multi512_func(char *input, int *len)
 {
     // 位长度
-     uint64_t blen = *len * 8, blen_cpy = blen;
+    uint64_t blen = *len * 8, blen_cpy = blen;
 
-    // 填充1
-    const uint8_t pad1 = 1 << 7; /* 因为按字节输入输出一定是8倍数，这里直接填充一个字节而不是一位 */
-    memcpy(input + *len, &pad1, 1);
+    // 填充1 因为按字节输入输出一定是8倍数，这里直接填充一个字节而不是一位
+    input[*len] = 0x80;
     blen += 8;
     *len += 1;
 
     // 填充0直到比512位倍数少64位
     int pad0 = (448 - (blen % 512)) % 512; /* 填充0的位数 */
     for (int i = 0; i < pad0 / 8; i++)
-        *(input + *len + i) = 0;
+        input[*len + i] = 0;
     *len += pad0 / 8;
 
     // 原始消息的位数的64位的二进制整数添加到消息末尾
