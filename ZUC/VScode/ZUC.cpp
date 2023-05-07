@@ -129,7 +129,7 @@ namespace ZUC
     void stream_work(char *input, char *output, int len, uint8_t k[], uint8_t iv[])
     {
         // 每4字节即32位为一组
-        L = len / 4 + (len % 4) ? 1 : 0;
+        L = len / 4 + ((len % 4) ? 1 : 0);
         Z = new uint32_t[L];
         ZUC_initialisation(k, iv);
         ZUC_work();
@@ -137,6 +137,6 @@ namespace ZUC
         for (int i = 0; i < L; i++)
             ((uint32_t *)output)[i] = ((uint32_t *)input)[i] ^ Z[i];
 
-        // delete Z;
+        // delete[] Z;
     }
 }
