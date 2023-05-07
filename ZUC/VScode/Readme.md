@@ -56,12 +56,6 @@ const int buffer_size = 8192;
 而在文件输入输出下，使用`fread()`进行输入，一次可输入多行，并且没有`\n`的问题（只要用户不主动多敲一个回车）。    
 综上，**建议使用文件模式进行输入输出**。
 
-<!--  
----
-# 关于图形化界面
-使用Qt开发，详见[这里](https://github.com/Jinvic/IS_experiment/tree/main/Tiger%20Hash/Qt)。
- -->
-
 ---
 # 待办事项
 * ~~ZUC算法部分（已完成）~~
