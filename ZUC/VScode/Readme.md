@@ -2,8 +2,9 @@
 
 存在尚未解决的问题，该项目已弃用。  
 交由其他组员进行重构。
+重构的项目在[这里](https://github.com/Jinvic/IS_experiment/tree/main/ZUC/VScode2)。
 
----
+<!-- ---
 # VSCode配置
 
 `.vscode`为vscode配置文件夹  
@@ -68,5 +69,5 @@ const int buffer_size = 8192;
 * ~~命令行界面交互设计（已完成）~~
 * Qt图形化界面
 
-
+ -->
 
